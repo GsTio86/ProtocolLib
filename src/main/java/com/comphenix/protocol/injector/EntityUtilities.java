@@ -229,9 +229,19 @@ class EntityUtilities {
                                         .typeExact(MinecraftReflection.getInt2ObjectMapClass())
                                         .build()));
             } else {
-                this.trackedEntitiesField = Accessors.getFieldAccessor(
+                try {
+                    this.trackedEntitiesField = Accessors.getFieldAccessor(
                         FuzzyReflection.fromClass(playerChunkMap.getClass(), false).getField(
-                                FuzzyFieldContract.newBuilder().typeDerivedOf(Map.class).nameExact("trackedEntities").build()));
+                            FuzzyFieldContract.newBuilder().typeDerivedOf(Map.class).nameExact("trackedEntities").build()));
+                } catch (Exception e) {
+                    this.trackedEntitiesField = Accessors.getFieldAccessor(
+                        FuzzyReflection.fromClass(playerChunkMap.getClass(), true)
+                            .getField(FuzzyFieldContract.newBuilder()
+                                .banModifier(Modifier.STATIC)
+                                .requirePublic()
+                                .typeExact(MinecraftReflection.getInt2ObjectMapClass())
+                                .build()));
+                }
             }
         }
 
