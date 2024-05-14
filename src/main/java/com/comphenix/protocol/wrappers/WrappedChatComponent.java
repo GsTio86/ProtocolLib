@@ -1,6 +1,5 @@
 package com.comphenix.protocol.wrappers;
 
-import com.google.gson.JsonObject;
 import java.io.StringReader;
 import java.util.Optional;
 
@@ -10,11 +9,12 @@ import com.comphenix.protocol.reflect.FuzzyReflection;
 import com.comphenix.protocol.reflect.accessors.Accessors;
 import com.comphenix.protocol.reflect.accessors.ConstructorAccessor;
 import com.comphenix.protocol.reflect.accessors.MethodAccessor;
+import com.comphenix.protocol.reflect.fuzzy.FuzzyMethodContract;
 import com.comphenix.protocol.utility.MinecraftReflection;
+import com.comphenix.protocol.utility.MinecraftRegistryAccess;
 import com.comphenix.protocol.utility.MinecraftVersion;
-
 import com.google.common.base.Preconditions;
-import net.minecraft.network.chat.IChatBaseComponent;
+import com.google.gson.JsonObject;
 
 /**
  * Represents a chat component added in Minecraft 1.7.2
@@ -36,17 +36,31 @@ public class WrappedChatComponent extends AbstractWrapper implements ClonableWra
     private static ConstructorAccessor CONSTRUCT_TEXT_COMPONENT = null;
 
     static {
-        FuzzyReflection fuzzy = FuzzyReflection.fromClass(SERIALIZER, true);
+        FuzzyReflection reflection = FuzzyReflection.fromClass(SERIALIZER, true);
 
         // Retrieve the correct methods
-        SERIALIZE_COMPONENT = Accessors.getMethodAccessor(fuzzy.getMethodByReturnTypeAndParameters("serialize", /* a */
-                String.class, new Class<?>[] { COMPONENT }));
+        if (MinecraftVersion.v1_20_5.atOrAbove()) {
+            SERIALIZE_COMPONENT = Accessors.getMethodAccessor(reflection.getMethod(FuzzyMethodContract.newBuilder()
+        			.returnTypeExact(String.class)
+        			.parameterDerivedOf(COMPONENT)
+        			.parameterDerivedOf(MinecraftReflection.getHolderLookupProviderClass())
+        			.build()));
+        } else {
+            SERIALIZE_COMPONENT = Accessors.getMethodAccessor(reflection.getMethodByReturnTypeAndParameters("serialize", /* a */
+                    String.class, new Class<?>[] { COMPONENT }));
+        }
 
-        GSON = Accessors.getFieldAccessor(fuzzy.getFieldByType("gson", GSON_CLASS)).get(null);
+        GSON = Accessors.getFieldAccessor(reflection.getFieldByType("gson", GSON_CLASS)).get(null);
 
-		if (MinecraftVersion.v1_20_4.atOrAbove()) {
-			DESERIALIZE = Accessors.getMethodAccessor(FuzzyReflection.fromClass(SERIALIZER, false)
-					.getMethodByReturnTypeAndParameters("fromJsonLenient", MUTABLE_COMPONENT_CLASS.get(), String.class));
+        if (MinecraftVersion.v1_20_5.atOrAbove()) {
+			DESERIALIZE = Accessors.getMethodAccessor(reflection.getMethod(FuzzyMethodContract.newBuilder()
+        			.returnDerivedOf(COMPONENT)
+        			.parameterExactType(String.class)
+        			.parameterDerivedOf(MinecraftReflection.getHolderLookupProviderClass())
+        			.build()));
+        } else if (MinecraftVersion.v1_20_4.atOrAbove()) {
+			DESERIALIZE = Accessors.getMethodAccessor(reflection
+					.getMethodByReturnTypeAndParameters("fromJson", MUTABLE_COMPONENT_CLASS.get(), new Class[] { String.class }));
 		} else {
 			try {
 				DESERIALIZE = Accessors.getMethodAccessor(FuzzyReflection.fromClass(MinecraftReflection.getChatDeserializer(), true)
@@ -68,7 +82,19 @@ public class WrappedChatComponent extends AbstractWrapper implements ClonableWra
         }
     }
 
+    private static Object serialize(Object handle) {
+    	if (MinecraftVersion.v1_20_5.atOrAbove()) {
+    		return SERIALIZE_COMPONENT.invoke(null, handle, MinecraftRegistryAccess.get());
+    	}
+
+		return SERIALIZE_COMPONENT.invoke(null, handle);
+    }
+
     private static Object deserialize(String json) {
+    	if (MinecraftVersion.v1_20_5.atOrAbove()) {
+    		return DESERIALIZE.invoke(null, json, MinecraftRegistryAccess.get());
+    	}
+
 		if (MinecraftVersion.v1_20_4.atOrAbove()) {
 			return DESERIALIZE.invoke(null, json);
 		}
@@ -167,7 +193,7 @@ public class WrappedChatComponent extends AbstractWrapper implements ClonableWra
      */
     public String getJson() {
         if (cache == null) {
-            cache = (String) SERIALIZE_COMPONENT.invoke(null, handle);
+            cache = (String) serialize(handle);
         }
         return cache;
     }

@@ -11,6 +11,7 @@ import com.comphenix.protocol.utility.MinecraftReflection;
 import com.comphenix.protocol.utility.MinecraftVersion;
 import org.bukkit.Color;
 import org.bukkit.Particle;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.inventory.ItemStack;
 
 /**
@@ -144,25 +145,17 @@ public class WrappedParticle<T> {
             bukkit = (Particle) toBukkit.invoke(null, handle);
         }
 
-        Object data = null;
-        switch (bukkit) {
-            case BLOCK_CRACK:
-            case BLOCK_DUST:
-            case FALLING_DUST:
-                data = getBlockData(handle);
-                break;
-            case ITEM_CRACK:
-                data = getItem(handle);
-                break;
-            case REDSTONE:
-                data = getRedstone(handle);
-                break;
-            case DUST_COLOR_TRANSITION:
-                data = getDustTransition(handle);
-                break;
-            default:
-                break;
-        }
+		Object data = null;
+		Class<?> dataType = bukkit.getDataType();
+		if (dataType == BlockData.class) {
+			data = getBlockData(handle);
+		} else if (dataType == Particle.DustTransition.class) {
+			data = getDustTransition(handle);
+		} else if (dataType == ItemStack.class) {
+			data = getItem(handle);
+		} else if (dataType == Particle.DustOptions.class) {
+			data = getRedstone(handle);
+		}
 
         return new WrappedParticle<>(handle, bukkit, data);
     }
@@ -224,8 +217,8 @@ public class WrappedParticle<T> {
 
         if (MinecraftVersion.FEATURE_PREVIEW_UPDATE.atOrAbove()) {
             StructureModifier<Object> modifier = new StructureModifier<>(handle.getClass()).withTarget(handle);
-            org.joml.Vector3f toRGB = (org.joml.Vector3f) modifier.withType(org.joml.Vector3f.class).read(0);
-            org.joml.Vector3f fromRGB = (org.joml.Vector3f) modifier.withType(org.joml.Vector3f.class).read(1);
+            org.joml.Vector3f toRGB = (org.joml.Vector3f) modifier.withType(org.joml.Vector3f.class).read(1);
+            org.joml.Vector3f fromRGB = (org.joml.Vector3f) modifier.withType(org.joml.Vector3f.class).read(0);
             size = (float) modifier.withType(float.class).read(0);
 
             fromR = (int) (fromRGB.x() * 255);

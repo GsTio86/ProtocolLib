@@ -6,7 +6,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.*;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import com.comphenix.protocol.PacketTypeLookup.ClassLookup;
 import com.comphenix.protocol.events.ConnectionSide;
@@ -268,7 +268,7 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
              */
             @Deprecated
             public static final PacketType UPDATE_SIGN =                  MinecraftReflection.signUpdateExists() ? new PacketType(PROTOCOL, SENDER, 252, "UpdateSign") :
-                TILE_ENTITY_DATA.clone();
+                                                                              TILE_ENTITY_DATA.clone();
 
             // ---- Removed in 1.14
 
@@ -898,7 +898,7 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
         if (type != null)
             return type;
         throw new IllegalArgumentException("Cannot find packet " + packetId +
-                                           "(Protocol: " + protocol + ", Sender: " + sender + ")");
+                "(Protocol: " + protocol + ", Sender: " + sender + ")");
     }
 
     public static PacketType findCurrent(Protocol protocol, Sender sender, String name) {
@@ -909,19 +909,27 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
             return type;
         } else {
             throw new IllegalArgumentException("Cannot find packet " + name +
-                                               "(Protocol: " + protocol + ", Sender: " + sender + ")");
+                    "(Protocol: " + protocol + ", Sender: " + sender + ")");
         }
+    }
+
+    private static String formatSimpleClassName(Protocol protocol, Sender sender, String name) {
+        return "Packet" + protocol.getPacketName() + sender.getPacketName() + name;
+    }
+
+    private static String formatSimpleMojangClassName(Protocol protocol, Sender sender, String name) {
+        return sender.getMojangName() + name + "Packet";
     }
 
     private static String formatMojangClassName(Protocol protocol, Sender sender, String name) {
         return "net.minecraft.network.protocol." + protocol.getMojangName() + "." + sender.getMojangName()
-               + name + "Packet";
+                + name + "Packet";
     }
 
     private static String formatClassName(Protocol protocol, Sender sender, String name) {
         if (MinecraftVersion.CAVES_CLIFFS_1.atOrAbove()) {
             return "net.minecraft.network.protocol." + protocol.getMojangName() + ".Packet"
-                   + protocol.getPacketName() + sender.getPacketName() + name;
+                    + protocol.getPacketName() + sender.getPacketName() + name;
         }
 
         String base = MinecraftReflection.getMinecraftPackage() + ".Packet";
@@ -934,7 +942,7 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
             String parent = split[0];
             String child = split[1];
             return base + protocol.getPacketName() + sender.getPacketName() + WordUtils.capitalize(parent)
-                   + "$Packet" + protocol.getPacketName() + sender.getPacketName() + WordUtils.capitalize(child);
+                    + "$Packet" + protocol.getPacketName() + sender.getPacketName() + WordUtils.capitalize(child);
         }
 
         return base + protocol.getPacketName() + sender.getPacketName() + WordUtils.capitalize(name);
@@ -983,7 +991,8 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
         return type;
     }
 
-    static Consumer<String> onDynamicCreate = x -> {};
+    static BiConsumer<PacketType, String> onDynamicCreate = (type, className) -> {};
+    static BiConsumer<PacketType, Integer> onIdMismatch = (type, newId) -> {};
 
     /**
      * Retrieve a packet type from a protocol, sender, ID, and class for 1.8+
@@ -1001,7 +1010,7 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
 
         // Check the map first
         String className = packetClass.getName();
-        PacketType type = find(map, className);
+        PacketType type = find(map, packetClass);
         if (type == null) {
             // Guess we don't support this packet :/
             type = new PacketType(protocol, sender, packetId, PROTOCOL_VERSION, className);
@@ -1009,14 +1018,17 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
 
             // Many may be scheduled, but only the first will be executed
             scheduleRegister(type, "Dynamic-" + UUID.randomUUID().toString());
-            onDynamicCreate.accept(className);
+            onDynamicCreate.accept(type, className);
+        } else if (packetId != type.getCurrentId()) {
+        	onIdMismatch.accept(type, packetId);
         }
 
         return type;
     }
 
-    private static PacketType find(Map<String, PacketType> map, String clazz) {
-        PacketType ret = map.get(clazz);
+    private static PacketType find(Map<String, PacketType> map, Class<?> packetClass) {
+    	String className = packetClass.getName();
+        PacketType ret = map.get(className);
         if (ret != null) {
             return ret;
         }
@@ -1026,7 +1038,7 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
             List<String> aliases = check.getClassNames();
             if (aliases.size() > 1) {
                 for (String alias : aliases) {
-                    if (alias.equals(clazz)) {
+                    if (alias.equals(className) || alias.equals(packetClass.getSimpleName())) {
                         // We have a match!
                         return check;
                     }
@@ -1156,6 +1168,9 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
             } else {
                 classNames.add(formatClassName(protocol, sender, classname));
                 classNames.add(formatMojangClassName(protocol, sender, classname));
+                classNames.add(formatSimpleClassName(protocol, sender, classname));
+                classNames.add(formatSimpleMojangClassName(protocol, sender, classname));
+                classNames.add(classname);
             }
         }
 
@@ -1316,10 +1331,10 @@ public class PacketType implements Serializable, Cloneable, Comparable<PacketTyp
     @Override
     public int compareTo(PacketType other) {
         return ComparisonChain.start().
-            compare(protocol, other.getProtocol()).
-            compare(sender, other.getSender()).
-            compare(currentId, other.getCurrentId()).
-            result();
+                compare(protocol, other.getProtocol()).
+                compare(sender, other.getSender()).
+                compare(currentId, other.getCurrentId()).
+                result();
     }
 
     @Override
