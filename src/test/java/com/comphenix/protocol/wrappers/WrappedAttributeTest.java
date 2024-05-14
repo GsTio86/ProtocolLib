@@ -94,7 +94,7 @@ public class WrappedAttributeTest {
             modifiers.add((AttributeModifier) wrapper.getHandle());
         }
 
-		IRegistry<AttributeBase> registry = BuiltInRegistries.u;
+		IRegistry<AttributeBase> registry = BuiltInRegistries.v;
         AttributeBase base = registry.a(MinecraftKey.a(attribute.getAttributeKey()));
         return new AttributeSnapshot(base, attribute.getBaseValue(), modifiers);
     }

@@ -501,7 +501,7 @@ public class PacketContainerTest {
         // are inner classes (which is ultimately pointless because AttributeSnapshots don't access any
         // members of the packet itself)
         PacketPlayOutUpdateAttributes packet = (PacketPlayOutUpdateAttributes) attribute.getHandle();
-		IRegistry<AttributeBase> registry = BuiltInRegistries.u;
+		IRegistry<AttributeBase> registry = BuiltInRegistries.v;
         AttributeBase base = registry.a(MinecraftKey.a("generic.max_health"));
         AttributeSnapshot snapshot = new AttributeSnapshot(base, 20.0D, modifiers);
         attribute.getSpecificModifier(List.class).write(0, Lists.newArrayList(snapshot));
@@ -884,7 +884,7 @@ public class PacketContainerTest {
 
                 // Make sure watchable collections can be cloned
                 if (type == PacketType.Play.Server.ENTITY_METADATA) {
-					IRegistry<CatVariant> catVariantRegistry = BuiltInRegistries.ak;
+					IRegistry<CatVariant> catVariantRegistry = BuiltInRegistries.aj;
                     constructed.getDataValueCollectionModifier().write(0, Lists.newArrayList(
                             new WrappedDataValue(0, Registry.get(Byte.class), (byte) 1),
                             new WrappedDataValue(0, Registry.get(Float.class), 5F),
